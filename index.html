@@ -143,13 +143,15 @@
   <div class="connect">
     <span class="status-dot" id="statusDot"></span>
     <span class="status-text" id="statusText">Belum terhubung — masukkan ID Google Sheet</span>
-    <input type="text" id="sheetIdInput" placeholder="1JEr-hyTYq9_4Ky0e-01KPhFeu0MySSfItq55IObivZw">
+    <input type="text" id="sheetIdInput" placeholder="Tempel ID atau link Google Sheet di sini...">
+    <input type="text" id="sheetTabInput" placeholder="Nama tab/sheet" value="data" style="max-width:160px; flex:0 0 160px;">
     <button id="connectBtn">Muat Data</button>
     <div class="hint">
       Cara mendapatkan ID: buka Google Sheet → <b>Share/Bagikan</b> → atur ke <b>"Anyone with the link – Viewer"</b>.
       Lalu salin bagian ID dari URL: <b>docs.google.com/spreadsheets/d/<u>ID_INI</u>/edit</b> — atau tempel link lengkapnya, sistem akan mengambil ID otomatis.
-      Nama tab/sheet yang dibaca: <b>data</b>.
+      Kolom kedua adalah nama tab persis seperti tertulis di bagian bawah Google Sheet Anda (huruf besar/kecil berpengaruh) — defaultnya <b>data</b>, ganti jika tab Anda bernama lain (mis. "Sheet1").
     </div>
+    <div class="hint" id="debugHint" style="display:none;"></div>
   </div>
 
   <div class="kpi-row">
@@ -343,25 +345,46 @@ function setStatus(state, text){
   document.getElementById('statusText').textContent = text;
 }
 
+function showDebug(msg){
+  const el = document.getElementById('debugHint');
+  el.style.display = 'block';
+  el.innerHTML = msg;
+}
+function hideDebug(){
+  document.getElementById('debugHint').style.display = 'none';
+}
+
 async function loadFromSheet(){
   const raw = document.getElementById('sheetIdInput').value;
+  const tab = (document.getElementById('sheetTabInput').value || 'data').trim();
   if(!raw){ setStatus('err','Masukkan ID atau link Google Sheet terlebih dahulu'); return; }
   const id = extractSheetId(raw);
-  const url = `https://docs.google.com/spreadsheets/d/${id}/gviz/tq?tqx=out:csv&sheet=data`;
+  const url = `https://docs.google.com/spreadsheets/d/${id}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(tab)}`;
   const btn = document.getElementById('connectBtn');
   btn.disabled = true;
-  setStatus('', 'Memuat data dari sheet "data"...');
+  hideDebug();
+  setStatus('', `Memuat data dari sheet "${tab}"...`);
   try{
     const res = await fetch(url);
-    if(!res.ok) throw new Error('HTTP ' + res.status);
     const text = await res.text();
-    if(text.trim().startsWith('<')) throw new Error('Sheet tidak publik atau tab "data" tidak ditemukan');
+    if(!res.ok || text.trim().startsWith('<') || /google\.visualization\.Query\.setResponse.*"status":"error"/.test(text)){
+      showDebug(
+        `Tidak berhasil membaca tab <b>"${tab}"</b>. Kemungkinan nama tab tidak persis sama (cek huruf besar/kecil di bagian bawah Google Sheet Anda), atau sheet belum benar-benar publik.<br>
+        Coba tes manual: buka link ini di tab browser baru — kalau muncul data mentah (bukan halaman error), berarti nama tab dan sharing sudah benar:<br>
+        <span style="word-break:break-all;color:#6ee7b7">${url}</span>`
+      );
+      throw new Error('Fetch gagal atau tab tidak ditemukan');
+    }
     const rows = parseCSV(text);
+    if(rows.length < 2){ throw new Error('Sheet kosong'); }
     const agg = aggregateRows(rows);
+    if(agg.total === 0){
+      showDebug(`Tab ditemukan tapi 0 baris data terhitung. Header yang terbaca: <b>${rows[0].join(', ')}</b>. Pastikan ada kolom "NO", "PROFESI", "LOKASI STAFF", dll persis seperti itu.`);
+    }
     render(agg);
-    setStatus('ok', `Terhubung — ${agg.total} baris dimuat dari sheet "data"`);
+    setStatus('ok', `Terhubung — ${agg.total} baris dimuat dari tab "${tab}"`);
   } catch(err){
-    setStatus('err', 'Gagal memuat: pastikan sheet dibagikan sebagai "Anyone with the link – Viewer"');
+    setStatus('err', `Gagal memuat tab "${tab}" — lihat detail di bawah`);
     console.error(err);
   } finally {
     btn.disabled = false;
@@ -370,6 +393,7 @@ async function loadFromSheet(){
 
 document.getElementById('connectBtn').addEventListener('click', loadFromSheet);
 document.getElementById('sheetIdInput').addEventListener('keydown', e => { if(e.key==='Enter') loadFromSheet(); });
+document.getElementById('sheetTabInput').addEventListener('keydown', e => { if(e.key==='Enter') loadFromSheet(); });
 
 render(FALLBACK);
 setStatus('', 'Menampilkan data contoh — hubungkan Google Sheet untuk data langsung');
