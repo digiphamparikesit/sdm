@@ -201,6 +201,15 @@
 </div>
 
 <script>
+try {
+if (typeof Chart === 'undefined') {
+  document.getElementById('statusDot').className = 'status-dot err';
+  document.getElementById('statusText').textContent = 'Library grafik (Chart.js) gagal dimuat dari CDN';
+  document.getElementById('debugHint').style.display = 'block';
+  document.getElementById('debugHint').innerHTML = 'Chart.js dari cdnjs.cloudflare.com tidak berhasil diakses — kemungkinan diblokir jaringan/firewall/ad-blocker Anda. Coba buka file ini di jaringan lain, nonaktifkan ad-blocker, atau buka lewat preview Claude langsung.';
+  throw new Error('Chart.js not loaded');
+}
+
 Chart.defaults.font.family = "'Inter', sans-serif";
 Chart.defaults.color = '#93b8a3';
 const GRID = 'rgba(255,255,255,0.06)';
@@ -373,10 +382,11 @@ async function loadFromSheet(){
   hideDebug();
   setStatus('', 'Memuat data dari Web App...');
   try{
-    const res = await fetch(url);
+    const sep = url.includes('?') ? '&' : '?';
+    const res = await fetch(url + sep + 'type=sdm');
     if(!res.ok) throw new Error('HTTP ' + res.status);
     const json = await res.json();
-    if(json.status !== 'ok') throw new Error(json.message || 'Respons tidak valid');
+    if(json.status !== 'ok') throw new Error(json.message || json.error || 'Respons tidak valid');
     const rows = rowsFromWebAppJson(json);
     if(rows.length < 2){ throw new Error('Sheet kosong'); }
     const agg = aggregateRows(rows);
@@ -400,6 +410,18 @@ document.getElementById('sheetIdInput').addEventListener('keydown', e => { if(e.
 render(FALLBACK);
 setStatus('', 'Menampilkan data contoh...');
 loadFromSheet();
+
+} catch (fatalErr) {
+  console.error('Dashboard init failed:', fatalErr);
+  if (typeof Chart === 'undefined') {
+    // message already set above
+  } else {
+    document.getElementById('statusDot').className = 'status-dot err';
+    document.getElementById('statusText').textContent = 'Terjadi error saat memuat dashboard';
+    document.getElementById('debugHint').style.display = 'block';
+    document.getElementById('debugHint').innerHTML = 'Detail teknis: ' + fatalErr.message + '. Buka Console browser (F12) untuk info lengkap.';
+  }
+}
 </script>
 </body>
 </html>
