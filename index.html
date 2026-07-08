@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Dashboard Data Pegawai — Instalasi Farmasi</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
   :root{
@@ -104,7 +103,7 @@
   .card{
     background:linear-gradient(180deg,var(--panel),var(--panel-2));
     border:1px solid var(--line); border-radius:16px;
-    padding:20px 22px 16px;
+    padding:20px 22px 18px;
   }
   .card h2{
     font-family:'Space Grotesk',sans-serif; font-size:15px; font-weight:600;
@@ -112,7 +111,11 @@
   }
   .card h2 .dot{width:8px; height:8px; border-radius:50%; background:var(--accent,var(--g1));}
   .card .desc{color:var(--ink-dim); font-size:12px; margin-bottom:14px;}
-  .chart-box{position:relative;}
+  .chart-box{position:relative; overflow-x:auto;}
+  .chart-box svg{display:block; max-width:100%; height:auto;}
+  .legend-row{display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--ink); margin-bottom:7px;}
+  .legend-dot{width:10px; height:10px; border-radius:50%; flex-shrink:0;}
+  .donut-wrap{display:flex; gap:24px; align-items:center; flex-wrap:wrap;}
 
   .c-profesi{grid-column:span 5;}
   .c-lokasi{grid-column:span 7;}
@@ -135,19 +138,19 @@
     <div>
       <div class="eyebrow">Instalasi Farmasi · Rekap Sumber Daya Manusia</div>
       <h1>Dashboard Data Pegawai</h1>
-      <div class="subtitle">Terhubung langsung ke Google Sheets — sheet "data". Perbarui data di sheet, lalu tekan Muat Ulang.</div>
+      <div class="subtitle">Terhubung langsung ke Google Sheets lewat Apps Script Web App. Perbarui data di sheet, lalu tekan Muat Ulang.</div>
     </div>
     <div class="timestamp">TOTAL PEGAWAI TERDATA<b id="totalPegawai">–</b></div>
   </header>
 
   <div class="connect">
     <span class="status-dot" id="statusDot"></span>
-    <span class="status-text" id="statusText">Belum terhubung — masukkan ID Google Sheet</span>
+    <span class="status-text" id="statusText">Belum terhubung</span>
     <input type="text" id="sheetIdInput" placeholder="Tempel URL Web App Apps Script (…/exec) di sini..." value="https://script.google.com/macros/s/AKfycbyr9QirgNaDgHKDFBtmexVXOgdEiuuU83aPBF4_f2LJ6mkfrziuwwi4CKLGwvW924ZrAg/exec">
     <button id="connectBtn">Muat Data</button>
     <div class="hint">
-      Cara pakai: buka Google Sheet → <b>Ekstensi → Apps Script</b> → pasang script backend (lihat file <b>AppsScript_backend.gs</b>) →
-      <b>Deploy → New deployment → Web app</b> → Execute as: Me, Access: Anyone → salin URL yang berakhiran <b>/exec</b> → tempel di kolom atas.
+      Cara pakai: buka Google Sheet → <b>Ekstensi → Apps Script</b> → pasang script backend →
+      <b>Deploy → Web app</b> (Execute as: Me, Access: Anyone) → salin URL yang berakhiran <b>/exec</b> → tempel di kolom atas.
     </div>
     <div class="hint" id="debugHint" style="display:none;"></div>
   </div>
@@ -163,59 +166,140 @@
     <div class="card c-profesi">
       <h2><span class="dot" style="background:#34d399"></span>Pegawai per Profesi</h2>
       <div class="desc">Jumlah staf berdasarkan kategori profesi</div>
-      <div class="chart-box"><canvas id="chartProfesi" height="230"></canvas></div>
+      <div class="chart-box" id="chartProfesi"></div>
     </div>
 
     <div class="card c-lokasi">
       <h2><span class="dot" style="background:#10b981"></span>Pegawai per Lokasi Penempatan</h2>
       <div class="desc">Distribusi staf di setiap unit instalasi farmasi</div>
-      <div class="chart-box"><canvas id="chartLokasi" height="230"></canvas></div>
+      <div class="chart-box" id="chartLokasi"></div>
     </div>
 
     <div class="card c-gender">
       <h2><span class="dot" style="background:#84cc16"></span>Jenis Kelamin</h2>
       <div class="desc">Komposisi gender pegawai</div>
-      <div class="chart-box"><canvas id="chartGender" height="220"></canvas></div>
+      <div class="chart-box" id="chartGender"></div>
     </div>
 
     <div class="card c-pendidikan">
       <h2><span class="dot" style="background:#6ee7b7"></span>Kualifikasi Pendidikan</h2>
       <div class="desc">Jenjang pendidikan terakhir pegawai</div>
-      <div class="chart-box"><canvas id="chartPendidikan" height="220"></canvas></div>
+      <div class="chart-box" id="chartPendidikan"></div>
     </div>
 
     <div class="card c-umur">
       <h2><span class="dot" style="background:#059669"></span>Kelompok Usia</h2>
       <div class="desc">Sebaran usia pegawai per dekade</div>
-      <div class="chart-box"><canvas id="chartUmur" height="220"></canvas></div>
+      <div class="chart-box" id="chartUmur"></div>
     </div>
 
     <div class="card c-jabatan">
       <h2><span class="dot" style="background:#34d399"></span>Pegawai per Jabatan</h2>
       <div class="desc">Rincian jumlah staf pada tiap jabatan</div>
-      <div class="chart-box"><canvas id="chartJabatan" height="140"></canvas></div>
+      <div class="chart-box" id="chartJabatan"></div>
     </div>
   </div>
 
-  <footer>DATA BASE 2026 · INSTALASI FARMASI · sumber data: Google Sheets (sheet "data")</footer>
+  <footer>DATA BASE 2026 · INSTALASI FARMASI · sumber data: Google Sheets (sheet "data") · grafik dirender native SVG, tanpa library eksternal</footer>
 </div>
 
 <script>
 try {
-if (typeof Chart === 'undefined') {
-  document.getElementById('statusDot').className = 'status-dot err';
-  document.getElementById('statusText').textContent = 'Library grafik (Chart.js) gagal dimuat dari CDN';
-  document.getElementById('debugHint').style.display = 'block';
-  document.getElementById('debugHint').innerHTML = 'Chart.js dari cdnjs.cloudflare.com tidak berhasil diakses — kemungkinan diblokir jaringan/firewall/ad-blocker Anda. Coba buka file ini di jaringan lain, nonaktifkan ad-blocker, atau buka lewat preview Claude langsung.';
-  throw new Error('Chart.js not loaded');
+
+const GREENS = ['#34d399','#10b981','#059669','#0a7a5c','#0d5c47','#6ee7b7'];
+
+function esc(s){
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function truncate(s,n){
+  s = String(s);
+  return s.length > n ? s.slice(0, n-1) + '…' : s;
 }
 
-Chart.defaults.font.family = "'Inter', sans-serif";
-Chart.defaults.color = '#93b8a3';
-const GRID = 'rgba(255,255,255,0.06)';
-function baseGrid(){ return { grid:{color:GRID, drawBorder:false}, ticks:{color:'#93b8a3', font:{size:11.5}}, border:{display:false} }; }
-const tip = { backgroundColor:'#0a2016', borderColor:'#1e4a34', borderWidth:1 };
+// ---------- Native SVG chart builders ----------
+function verticalBarChart(labels, data, colors){
+  const W = 620, H = 300;
+  const padTop = 34, padBottom = 46, padLeft = 16, padRight = 16;
+  const chartW = W - padLeft - padRight;
+  const chartH = H - padTop - padBottom;
+  const n = Math.max(data.length, 1);
+  const maxVal = Math.max(...data, 1) * 1.18;
+  const slot = chartW / n;
+  const barW = Math.min(slot * 0.55, 70);
+  let bars = '';
+  data.forEach((v, i) => {
+    const cx = padLeft + slot * i + slot / 2;
+    const x = cx - barW / 2;
+    const barH = (v / maxVal) * chartH;
+    const y = padTop + chartH - barH;
+    const color = Array.isArray(colors) ? colors[i % colors.length] : colors;
+    bars += `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barW.toFixed(1)}" height="${barH.toFixed(1)}" rx="6" fill="${color}"/>`;
+    bars += `<text x="${cx.toFixed(1)}" y="${(y-9).toFixed(1)}" text-anchor="middle" font-size="13" font-weight="700" fill="#eafaf0" font-family="Space Grotesk, sans-serif">${v}</text>`;
+    bars += `<text x="${cx.toFixed(1)}" y="${(H-padBottom+20).toFixed(1)}" text-anchor="middle" font-size="10.5" fill="#93b8a3">${esc(truncate(labels[i], 14))}</text>`;
+  });
+  bars += `<line x1="${padLeft}" y1="${padTop+chartH}" x2="${W-padRight}" y2="${padTop+chartH}" stroke="#1e4a34" stroke-width="1"/>`;
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%" xmlns="http://www.w3.org/2000/svg">${bars}</svg>`;
+}
 
+function horizontalBarChart(labels, data, colors){
+  const W = 640;
+  const rowH = 32;
+  const padTop = 8, padBottom = 8, padLeft = 168, padRight = 46;
+  const n = Math.max(data.length, 1);
+  const H = padTop + padBottom + n * rowH;
+  const chartW = W - padLeft - padRight;
+  const maxVal = Math.max(...data, 1) * 1.12;
+  let rows = '';
+  data.forEach((v, i) => {
+    const y = padTop + i * rowH;
+    const barW = (v / maxVal) * chartW;
+    const color = Array.isArray(colors) ? colors[i % colors.length] : colors;
+    rows += `<text x="${padLeft-10}" y="${(y+rowH/2+4).toFixed(1)}" text-anchor="end" font-size="12" fill="#93b8a3">${esc(truncate(labels[i], 24))}</text>`;
+    rows += `<rect x="${padLeft}" y="${(y+7).toFixed(1)}" width="${Math.max(barW,2).toFixed(1)}" height="${rowH-14}" rx="5" fill="${color}"/>`;
+    rows += `<text x="${(padLeft+barW+8).toFixed(1)}" y="${(y+rowH/2+4).toFixed(1)}" font-size="12" font-weight="700" fill="#eafaf0">${v}</text>`;
+  });
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%" xmlns="http://www.w3.org/2000/svg">${rows}</svg>`;
+}
+
+function arcPath(cx, cy, rOuter, rInner, startAngle, endAngle){
+  const toRad = a => (a - 90) * Math.PI / 180;
+  const x1o = cx + rOuter * Math.cos(toRad(startAngle));
+  const y1o = cy + rOuter * Math.sin(toRad(startAngle));
+  const x2o = cx + rOuter * Math.cos(toRad(endAngle));
+  const y2o = cy + rOuter * Math.sin(toRad(endAngle));
+  const x1i = cx + rInner * Math.cos(toRad(endAngle));
+  const y1i = cy + rInner * Math.sin(toRad(endAngle));
+  const x2i = cx + rInner * Math.cos(toRad(startAngle));
+  const y2i = cy + rInner * Math.sin(toRad(startAngle));
+  const largeArc = (endAngle - startAngle) > 180 ? 1 : 0;
+  return `M ${x1o.toFixed(2)} ${y1o.toFixed(2)} A ${rOuter} ${rOuter} 0 ${largeArc} 1 ${x2o.toFixed(2)} ${y2o.toFixed(2)} `+
+         `L ${x1i.toFixed(2)} ${y1i.toFixed(2)} A ${rInner} ${rInner} 0 ${largeArc} 0 ${x2i.toFixed(2)} ${y2i.toFixed(2)} Z`;
+}
+
+function donutChart(labels, data, colors){
+  const total = data.reduce((a,b)=>a+b,0) || 1;
+  const cx = 110, cy = 110, rOuter = 96, rInner = 60;
+  let angle = 0;
+  let paths = '';
+  data.forEach((v, i) => {
+    const sweep = (v/total) * 360;
+    const color = colors[i % colors.length];
+    paths += `<path d="${arcPath(cx,cy,rOuter,rInner,angle,angle+sweep)}" fill="${color}" stroke="#0f2c1e" stroke-width="2"/>`;
+    angle += sweep;
+  });
+  const svg = `<svg viewBox="0 0 220 220" width="220" height="220" xmlns="http://www.w3.org/2000/svg">${paths}`+
+    `<text x="110" y="104" text-anchor="middle" font-size="24" font-weight="700" fill="#eafaf0" font-family="Space Grotesk, sans-serif">${total}</text>`+
+    `<text x="110" y="123" text-anchor="middle" font-size="10" fill="#93b8a3" letter-spacing="1">TOTAL</text></svg>`;
+  let legend = '<div>';
+  data.forEach((v,i) => {
+    const pct = Math.round(v/total*100);
+    legend += `<div class="legend-row"><span class="legend-dot" style="background:${colors[i%colors.length]}"></span>${esc(labels[i])} — ${v} (${pct}%)</div>`;
+  });
+  legend += '</div>';
+  return `<div class="donut-wrap">${svg}${legend}</div>`;
+}
+
+// ---------- Fallback sample data ----------
 const FALLBACK = {
   profesi: {'TTK':46,'APOTEKER':24,'UMUM':14,'Administrator Kesehatan':2},
   lokasi: {'6. RAWAT JALAN':32,'5. RAWAT INAP':20,'3. IGD,IBS &CATHLAB':13,'8. GUDANG FARMASI':10,'4. FARMASI KLINIS':4,'7. UPSS':3,'2. ADMINISTRASI':3,'1. KEPALA INSTALASI':1},
@@ -226,14 +310,7 @@ const FALLBACK = {
   total: 86
 };
 
-const charts = {};
 function sortDesc(obj){ return Object.entries(obj).sort((a,b)=>b[1]-a[1]); }
-
-function upsertChart(id, config){
-  if(charts[id]){ charts[id].data = config.data; charts[id].update(); }
-  else{ charts[id] = new Chart(document.getElementById(id), config); }
-}
-
 function titleCase(s){
   if(!s) return s;
   return s.toString().toLowerCase().replace(/\b\w/g, c=>c.toUpperCase());
@@ -252,69 +329,31 @@ function render(agg){
   document.getElementById('kpi3lbl').textContent = `Staf Perempuan (${pctP}%)`;
   if(lokRanked[0]){ document.getElementById('kpi4').textContent = lokRanked[0][1]; document.getElementById('kpi4lbl').textContent = 'Di ' + titleCase(lokRanked[0][0].replace(/^\d+\.\s*/,'')); }
 
-  upsertChart('chartProfesi', {
-    type:'bar',
-    data:{ labels:profRanked.map(d=>titleCase(d[0])), datasets:[{ data:profRanked.map(d=>d[1]), backgroundColor:['#34d399','#10b981','#059669','#0a7a5c','#0d5c47'], borderRadius:6, maxBarThickness:52 }] },
-    options:{ plugins:{legend:{display:false}, tooltip:tip}, scales:{x:baseGrid(), y:{...baseGrid(), beginAtZero:true}} }
-  });
+  document.getElementById('chartProfesi').innerHTML =
+    verticalBarChart(profRanked.map(d=>titleCase(d[0])), profRanked.map(d=>d[1]), GREENS);
 
   const lokLabels = lokRanked.map(d=>titleCase(d[0].replace(/^\d+\.\s*/,'')));
-  upsertChart('chartLokasi', {
-    type:'bar',
-    data:{ labels:lokLabels, datasets:[{ data:lokRanked.map(d=>d[1]), backgroundColor:'#10b981', borderRadius:6, maxBarThickness:26 }] },
-    options:{ indexAxis:'y', plugins:{legend:{display:false}, tooltip:tip}, scales:{x:{...baseGrid(), beginAtZero:true}, y:baseGrid()} }
-  });
+  document.getElementById('chartLokasi').innerHTML =
+    horizontalBarChart(lokLabels, lokRanked.map(d=>d[1]), '#10b981');
 
   const genderLabels = Object.keys(agg.gender).map(k=> k==='L'?'Laki-laki': k==='P'?'Perempuan': titleCase(k));
-  upsertChart('chartGender', {
-    type:'doughnut',
-    data:{ labels:genderLabels, datasets:[{ data:Object.values(agg.gender), backgroundColor:['#84cc16','#34d399','#059669'], borderColor:'#0f2c1e', borderWidth:3 }] },
-    options:{ cutout:'62%', plugins:{ legend:{position:'bottom', labels:{boxWidth:10, padding:16, font:{size:12}}}, tooltip:tip } }
-  });
+  document.getElementById('chartGender').innerHTML =
+    donutChart(genderLabels, Object.values(agg.gender), ['#84cc16','#34d399','#059669']);
 
   const penRanked = sortDesc(agg.pendidikan);
-  upsertChart('chartPendidikan', {
-    type:'bar',
-    data:{ labels:penRanked.map(d=>d[0]), datasets:[{ data:penRanked.map(d=>d[1]), backgroundColor:'#6ee7b7', borderRadius:6, maxBarThickness:22 }] },
-    options:{ indexAxis:'y', plugins:{legend:{display:false}, tooltip:tip}, scales:{x:{...baseGrid(), beginAtZero:true}, y:baseGrid()} }
-  });
+  document.getElementById('chartPendidikan').innerHTML =
+    horizontalBarChart(penRanked.map(d=>d[0]), penRanked.map(d=>d[1]), '#6ee7b7');
 
   const umurOrder = Object.keys(agg.umur).sort();
-  upsertChart('chartUmur', {
-    type:'bar',
-    data:{ labels:umurOrder, datasets:[{ data:umurOrder.map(k=>agg.umur[k]), backgroundColor:'#059669', borderRadius:6, maxBarThickness:44 }] },
-    options:{ plugins:{legend:{display:false}, tooltip:tip}, scales:{x:baseGrid(), y:{...baseGrid(), beginAtZero:true}} }
-  });
+  document.getElementById('chartUmur').innerHTML =
+    verticalBarChart(umurOrder, umurOrder.map(k=>agg.umur[k]), '#059669');
 
   const jabRanked = sortDesc(agg.jabatan);
-  upsertChart('chartJabatan', {
-    type:'bar',
-    data:{ labels:jabRanked.map(d=>d[0]), datasets:[{ data:jabRanked.map(d=>d[1]), backgroundColor:'#34d399', borderRadius:5, maxBarThickness:34 }] },
-    options:{ plugins:{legend:{display:false}, tooltip:tip}, scales:{ x:{...baseGrid(), ticks:{...baseGrid().ticks, maxRotation:40, minRotation:40}}, y:{...baseGrid(), beginAtZero:true} } }
-  });
+  document.getElementById('chartJabatan').innerHTML =
+    horizontalBarChart(jabRanked.map(d=>d[0]), jabRanked.map(d=>d[1]), GREENS);
 }
 
-function parseCSV(text){
-  const rows = [];
-  let row = [], field = '', inQuotes = false;
-  for(let i=0;i<text.length;i++){
-    const c = text[i], n = text[i+1];
-    if(inQuotes){
-      if(c === '"' && n === '"'){ field += '"'; i++; }
-      else if(c === '"'){ inQuotes = false; }
-      else { field += c; }
-    } else {
-      if(c === '"'){ inQuotes = true; }
-      else if(c === ','){ row.push(field); field=''; }
-      else if(c === '\n'){ row.push(field); rows.push(row); row=[]; field=''; }
-      else if(c === '\r'){ /* skip */ }
-      else { field += c; }
-    }
-  }
-  if(field.length || row.length){ row.push(field); rows.push(row); }
-  return rows;
-}
-
+// ---------- Data aggregation ----------
 function aggregateRows(rows){
   const headers = rows[0].map(h=>h.trim().toUpperCase());
   const idx = name => headers.indexOf(name);
@@ -339,19 +378,6 @@ function aggregateRows(rows){
   return agg;
 }
 
-function extractSheetId(input){
-  input = input.trim();
-  const m = input.match(/\/d\/([a-zA-Z0-9-_]+)/);
-  if(m) return m[1];
-  return input;
-}
-
-function setStatus(state, text){
-  const dot = document.getElementById('statusDot');
-  dot.className = 'status-dot' + (state ? ' ' + state : '');
-  document.getElementById('statusText').textContent = text;
-}
-
 function rowsFromWebAppJson(json){
   const headers = json.headers;
   const rows = [headers];
@@ -368,6 +394,11 @@ function showDebug(msg){
 }
 function hideDebug(){
   document.getElementById('debugHint').style.display = 'none';
+}
+function setStatus(state, text){
+  const dot = document.getElementById('statusDot');
+  dot.className = 'status-dot' + (state ? ' ' + state : '');
+  document.getElementById('statusText').textContent = text;
 }
 
 async function loadFromSheet(){
@@ -413,14 +444,10 @@ loadFromSheet();
 
 } catch (fatalErr) {
   console.error('Dashboard init failed:', fatalErr);
-  if (typeof Chart === 'undefined') {
-    // message already set above
-  } else {
-    document.getElementById('statusDot').className = 'status-dot err';
-    document.getElementById('statusText').textContent = 'Terjadi error saat memuat dashboard';
-    document.getElementById('debugHint').style.display = 'block';
-    document.getElementById('debugHint').innerHTML = 'Detail teknis: ' + fatalErr.message + '. Buka Console browser (F12) untuk info lengkap.';
-  }
+  document.getElementById('statusDot').className = 'status-dot err';
+  document.getElementById('statusText').textContent = 'Terjadi error saat memuat dashboard';
+  document.getElementById('debugHint').style.display = 'block';
+  document.getElementById('debugHint').innerHTML = 'Detail teknis: ' + fatalErr.message + '. Buka Console browser (F12) untuk info lengkap.';
 }
 </script>
 </body>
