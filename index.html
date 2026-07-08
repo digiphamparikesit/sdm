@@ -345,6 +345,59 @@ function setStatus(state, text){
   document.getElementById('statusText').textContent = text;
 }
 
+function tableToRows(table){
+  const headers = table.cols.map(c => (c.label || c.id || '').trim());
+  const rows = [headers];
+  table.rows.forEach(r => {
+    rows.push(r.c.map(cell => (cell && cell.v !== null && cell.v !== undefined) ? String(cell.v) : ''));
+  });
+  return rows;
+}
+
+function fetchViaJsonp(id, tab, timeoutMs=12000){
+  return new Promise((resolve, reject) => {
+    const cbName = '__gsheetCb_' + Date.now() + '_' + Math.floor(Math.random()*1e6);
+    const url = `https://docs.google.com/spreadsheets/d/${id}/gviz/tq?` +
+      `tqx=${encodeURIComponent('out:json;responseHandler:' + cbName)}&sheet=${encodeURIComponent(tab)}`;
+    const script = document.createElement('script');
+    let done = false;
+
+    const cleanup = () => {
+      delete window[cbName];
+      if(script.parentNode) script.parentNode.removeChild(script);
+      clearTimeout(timer);
+    };
+
+    window[cbName] = (resp) => {
+      if(done) return;
+      done = true;
+      cleanup();
+      if(!resp || resp.status === 'error'){
+        reject(new Error(resp && resp.errors ? resp.errors.map(e=>e.detailed_message||e.message).join('; ') : 'Sheet/tab tidak ditemukan'));
+        return;
+      }
+      resolve(tableToRows(resp.table));
+    };
+
+    const timer = setTimeout(() => {
+      if(done) return;
+      done = true;
+      cleanup();
+      reject(new Error('Timeout — tidak ada respons dari Google Sheets'));
+    }, timeoutMs);
+
+    script.onerror = () => {
+      if(done) return;
+      done = true;
+      cleanup();
+      reject(new Error('Gagal memuat script — cek ID sheet dan status sharing'));
+    };
+
+    script.src = url;
+    document.head.appendChild(script);
+  });
+}
+
 function showDebug(msg){
   const el = document.getElementById('debugHint');
   el.style.display = 'block';
@@ -359,23 +412,12 @@ async function loadFromSheet(){
   const tab = (document.getElementById('sheetTabInput').value || 'data').trim();
   if(!raw){ setStatus('err','Masukkan ID atau link Google Sheet terlebih dahulu'); return; }
   const id = extractSheetId(raw);
-  const url = `https://docs.google.com/spreadsheets/d/${id}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(tab)}`;
   const btn = document.getElementById('connectBtn');
   btn.disabled = true;
   hideDebug();
   setStatus('', `Memuat data dari sheet "${tab}"...`);
   try{
-    const res = await fetch(url);
-    const text = await res.text();
-    if(!res.ok || text.trim().startsWith('<') || /google\.visualization\.Query\.setResponse.*"status":"error"/.test(text)){
-      showDebug(
-        `Tidak berhasil membaca tab <b>"${tab}"</b>. Kemungkinan nama tab tidak persis sama (cek huruf besar/kecil di bagian bawah Google Sheet Anda), atau sheet belum benar-benar publik.<br>
-        Coba tes manual: buka link ini di tab browser baru — kalau muncul data mentah (bukan halaman error), berarti nama tab dan sharing sudah benar:<br>
-        <span style="word-break:break-all;color:#6ee7b7">${url}</span>`
-      );
-      throw new Error('Fetch gagal atau tab tidak ditemukan');
-    }
-    const rows = parseCSV(text);
+    const rows = await fetchViaJsonp(id, tab);
     if(rows.length < 2){ throw new Error('Sheet kosong'); }
     const agg = aggregateRows(rows);
     if(agg.total === 0){
@@ -384,7 +426,8 @@ async function loadFromSheet(){
     render(agg);
     setStatus('ok', `Terhubung — ${agg.total} baris dimuat dari tab "${tab}"`);
   } catch(err){
-    setStatus('err', `Gagal memuat tab "${tab}" — lihat detail di bawah`);
+    setStatus('err', `Gagal memuat tab "${tab}": ${err.message}`);
+    showDebug(`Detail: ${err.message}. Cek nama tab persis (huruf besar/kecil) dan pastikan sharing "Anyone with the link – Viewer".`);
     console.error(err);
   } finally {
     btn.disabled = false;
