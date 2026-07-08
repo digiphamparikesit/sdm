@@ -143,13 +143,11 @@
   <div class="connect">
     <span class="status-dot" id="statusDot"></span>
     <span class="status-text" id="statusText">Belum terhubung — masukkan ID Google Sheet</span>
-    <input type="text" id="sheetIdInput" placeholder="Tempel ID atau link Google Sheet di sini...">
-    <input type="text" id="sheetTabInput" placeholder="Nama tab/sheet" value="data" style="max-width:160px; flex:0 0 160px;">
+    <input type="text" id="sheetIdInput" placeholder="Tempel URL Web App Apps Script (…/exec) di sini...">
     <button id="connectBtn">Muat Data</button>
     <div class="hint">
-      Cara mendapatkan ID: buka Google Sheet → <b>Share/Bagikan</b> → atur ke <b>"Anyone with the link – Viewer"</b>.
-      Lalu salin bagian ID dari URL: <b>docs.google.com/spreadsheets/d/<u>ID_INI</u>/edit</b> — atau tempel link lengkapnya, sistem akan mengambil ID otomatis.
-      Kolom kedua adalah nama tab persis seperti tertulis di bagian bawah Google Sheet Anda (huruf besar/kecil berpengaruh) — defaultnya <b>data</b>, ganti jika tab Anda bernama lain (mis. "Sheet1").
+      Cara pakai: buka Google Sheet → <b>Ekstensi → Apps Script</b> → pasang script backend (lihat file <b>AppsScript_backend.gs</b>) →
+      <b>Deploy → New deployment → Web app</b> → Execute as: Me, Access: Anyone → salin URL yang berakhiran <b>/exec</b> → tempel di kolom atas.
     </div>
     <div class="hint" id="debugHint" style="display:none;"></div>
   </div>
@@ -345,57 +343,13 @@ function setStatus(state, text){
   document.getElementById('statusText').textContent = text;
 }
 
-function tableToRows(table){
-  const headers = table.cols.map(c => (c.label || c.id || '').trim());
+function rowsFromWebAppJson(json){
+  const headers = json.headers;
   const rows = [headers];
-  table.rows.forEach(r => {
-    rows.push(r.c.map(cell => (cell && cell.v !== null && cell.v !== undefined) ? String(cell.v) : ''));
+  json.rows.forEach(obj => {
+    rows.push(headers.map(h => (obj[h] !== null && obj[h] !== undefined) ? String(obj[h]) : ''));
   });
   return rows;
-}
-
-function fetchViaJsonp(id, tab, timeoutMs=12000){
-  return new Promise((resolve, reject) => {
-    const cbName = '__gsheetCb_' + Date.now() + '_' + Math.floor(Math.random()*1e6);
-    const url = `https://docs.google.com/spreadsheets/d/${id}/gviz/tq?` +
-      `tqx=${encodeURIComponent('out:json;responseHandler:' + cbName)}&sheet=${encodeURIComponent(tab)}`;
-    const script = document.createElement('script');
-    let done = false;
-
-    const cleanup = () => {
-      delete window[cbName];
-      if(script.parentNode) script.parentNode.removeChild(script);
-      clearTimeout(timer);
-    };
-
-    window[cbName] = (resp) => {
-      if(done) return;
-      done = true;
-      cleanup();
-      if(!resp || resp.status === 'error'){
-        reject(new Error(resp && resp.errors ? resp.errors.map(e=>e.detailed_message||e.message).join('; ') : 'Sheet/tab tidak ditemukan'));
-        return;
-      }
-      resolve(tableToRows(resp.table));
-    };
-
-    const timer = setTimeout(() => {
-      if(done) return;
-      done = true;
-      cleanup();
-      reject(new Error('Timeout — tidak ada respons dari Google Sheets'));
-    }, timeoutMs);
-
-    script.onerror = () => {
-      if(done) return;
-      done = true;
-      cleanup();
-      reject(new Error('Gagal memuat script — cek ID sheet dan status sharing'));
-    };
-
-    script.src = url;
-    document.head.appendChild(script);
-  });
 }
 
 function showDebug(msg){
@@ -408,26 +362,32 @@ function hideDebug(){
 }
 
 async function loadFromSheet(){
-  const raw = document.getElementById('sheetIdInput').value;
-  const tab = (document.getElementById('sheetTabInput').value || 'data').trim();
-  if(!raw){ setStatus('err','Masukkan ID atau link Google Sheet terlebih dahulu'); return; }
-  const id = extractSheetId(raw);
+  const url = document.getElementById('sheetIdInput').value.trim();
+  if(!url){ setStatus('err','Tempel URL Web App Apps Script terlebih dahulu'); return; }
+  if(!/^https:\/\/script\.google\.com\/macros\/s\/.+\/exec/.test(url)){
+    setStatus('err','URL harus berupa link Web App Apps Script yang berakhiran /exec');
+    return;
+  }
   const btn = document.getElementById('connectBtn');
   btn.disabled = true;
   hideDebug();
-  setStatus('', `Memuat data dari sheet "${tab}"...`);
+  setStatus('', 'Memuat data dari Web App...');
   try{
-    const rows = await fetchViaJsonp(id, tab);
+    const res = await fetch(url);
+    if(!res.ok) throw new Error('HTTP ' + res.status);
+    const json = await res.json();
+    if(json.status !== 'ok') throw new Error(json.message || 'Respons tidak valid');
+    const rows = rowsFromWebAppJson(json);
     if(rows.length < 2){ throw new Error('Sheet kosong'); }
     const agg = aggregateRows(rows);
     if(agg.total === 0){
-      showDebug(`Tab ditemukan tapi 0 baris data terhitung. Header yang terbaca: <b>${rows[0].join(', ')}</b>. Pastikan ada kolom "NO", "PROFESI", "LOKASI STAFF", dll persis seperti itu.`);
+      showDebug(`Data ditemukan tapi 0 baris terhitung. Header yang terbaca: <b>${rows[0].join(', ')}</b>. Pastikan ada kolom "NO", "PROFESI", "LOKASI STAFF", dll persis seperti itu.`);
     }
     render(agg);
-    setStatus('ok', `Terhubung — ${agg.total} baris dimuat dari tab "${tab}"`);
+    setStatus('ok', `Terhubung — ${agg.total} baris dimuat dari Web App`);
   } catch(err){
-    setStatus('err', `Gagal memuat tab "${tab}": ${err.message}`);
-    showDebug(`Detail: ${err.message}. Cek nama tab persis (huruf besar/kecil) dan pastikan sharing "Anyone with the link – Viewer".`);
+    setStatus('err', `Gagal memuat: ${err.message}`);
+    showDebug(`Detail: ${err.message}. Cek apakah deployment sudah "Anyone" access, dan sheet "data" ada di spreadsheet yang benar.`);
     console.error(err);
   } finally {
     btn.disabled = false;
@@ -436,7 +396,6 @@ async function loadFromSheet(){
 
 document.getElementById('connectBtn').addEventListener('click', loadFromSheet);
 document.getElementById('sheetIdInput').addEventListener('keydown', e => { if(e.key==='Enter') loadFromSheet(); });
-document.getElementById('sheetTabInput').addEventListener('keydown', e => { if(e.key==='Enter') loadFromSheet(); });
 
 render(FALLBACK);
 setStatus('', 'Menampilkan data contoh — hubungkan Google Sheet untuk data langsung');
