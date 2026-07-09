@@ -117,16 +117,49 @@
   .legend-dot{width:10px; height:10px; border-radius:50%; flex-shrink:0;}
   .donut-wrap{display:flex; gap:24px; align-items:center; flex-wrap:wrap;}
 
-  .c-profesi{grid-column:span 5;}
-  .c-lokasi{grid-column:span 7;}
+  .c-profesi{grid-column:span 6;}
+  .c-lokasi{grid-column:span 6;}
   .c-gender{grid-column:span 4;}
   .c-pendidikan{grid-column:span 4;}
   .c-umur{grid-column:span 4;}
+  .c-masakerja{grid-column:span 6;}
+  .c-masasip{grid-column:span 6;}
   .c-jabatan{grid-column:span 12;}
 
   @media (max-width:920px){
-    .c-profesi,.c-lokasi,.c-gender,.c-pendidikan,.c-umur,.c-jabatan{grid-column:span 12;}
+    .c-profesi,.c-lokasi,.c-gender,.c-pendidikan,.c-umur,.c-masakerja,.c-masasip,.c-jabatan{grid-column:span 12;}
   }
+
+  /* ---- Tab navigation ---- */
+  .tabs{display:flex; gap:8px; margin-bottom:22px;}
+  .tab-btn{
+    background:transparent; border:1px solid var(--line); color:var(--ink-dim);
+    padding:9px 18px; border-radius:999px; font-size:13px; font-weight:600;
+    cursor:pointer; font-family:'Inter',sans-serif; transition:all .15s ease;
+  }
+  .tab-btn:hover{color:var(--ink); border-color:var(--g4);}
+  .tab-btn.active{background:var(--g2); color:#06150d; border-color:var(--g2);}
+  .view{display:none;}
+  .view.active{display:block;}
+
+  .mini-status{
+    display:inline-flex; align-items:center; gap:7px; font-size:11.5px;
+    color:var(--ink-dim); font-family:var(--mono); margin-top:6px;
+    background:rgba(255,255,255,0.03); border:1px solid var(--line);
+    padding:5px 12px; border-radius:999px; cursor:pointer;
+  }
+  .mini-status:hover{border-color:var(--g4);}
+  .mini-status .status-dot{width:7px; height:7px; border-radius:50%; background:var(--warn);}
+  .mini-status .status-dot.ok{background:var(--g1);}
+  .mini-status .status-dot.err{background:#e76f6f;}
+
+  .info-box{
+    background:linear-gradient(180deg,var(--panel),var(--panel-2));
+    border:1px solid var(--line); border-radius:14px; padding:20px 22px; margin-bottom:20px;
+  }
+  .info-box h3{font-family:'Space Grotesk',sans-serif; font-size:14px; margin-bottom:8px; color:var(--g5);}
+  .info-box p{color:var(--ink-dim); font-size:13px; line-height:1.7;}
+  .info-box code{font-family:var(--mono); background:#081a11; padding:2px 6px; border-radius:4px; color:var(--g5); font-size:12px;}
 
   footer{text-align:center; color:var(--ink-dim); font-size:11.5px; margin-top:40px; font-family:var(--mono);}
 </style>
@@ -138,39 +171,62 @@
     <div>
       <div class="eyebrow">Instalasi Farmasi · Rekap Sumber Daya Manusia</div>
       <h1>Dashboard Data Pegawai</h1>
-      <div class="subtitle">Terhubung langsung ke Google Sheets lewat Apps Script Web App. Perbarui data di sheet, lalu tekan Muat Ulang.</div>
+      <div class="subtitle">Ringkasan visual komposisi staf Instalasi Farmasi.</div>
+      <div class="mini-status" id="miniStatus" onclick="switchTab('source')">
+        <span class="status-dot" id="statusDot"></span>
+        <span id="statusText">Belum terhubung</span> · lihat sumber data →
+      </div>
     </div>
     <div class="timestamp">TOTAL PEGAWAI TERDATA<b id="totalPegawai">–</b></div>
   </header>
 
-  <div class="connect">
-    <span class="status-dot" id="statusDot"></span>
-    <span class="status-text" id="statusText">Belum terhubung</span>
-    <input type="text" id="sheetIdInput" placeholder="Tempel URL Web App Apps Script (…/exec) di sini..." value="https://script.google.com/macros/s/AKfycbyr9QirgNaDgHKDFBtmexVXOgdEiuuU83aPBF4_f2LJ6mkfrziuwwi4CKLGwvW924ZrAg/exec">
-    <button id="connectBtn">Muat Data</button>
-    <div class="hint">
-      Cara pakai: buka Google Sheet → <b>Ekstensi → Apps Script</b> → pasang script backend →
-      <b>Deploy → Web app</b> (Execute as: Me, Access: Anyone) → salin URL yang berakhiran <b>/exec</b> → tempel di kolom atas.
-    </div>
-    <div class="hint" id="debugHint" style="display:none;"></div>
+  <div class="tabs">
+    <button class="tab-btn active" id="tabBtnDashboard" onclick="switchTab('dashboard')">Dashboard</button>
+    <button class="tab-btn" id="tabBtnSource" onclick="switchTab('source')">Sumber Data</button>
   </div>
 
-  <div class="kpi-row">
-    <div class="kpi" style="--accent:#34d399"><div class="num" id="kpi1">–</div><div class="lbl" id="kpi1lbl">Tenaga Teknis Kefarmasian (TTK)</div></div>
-    <div class="kpi" style="--accent:#84cc16"><div class="num" id="kpi2">–</div><div class="lbl" id="kpi2lbl">Apoteker</div></div>
-    <div class="kpi" style="--accent:#6ee7b7"><div class="num" id="kpi3">–</div><div class="lbl" id="kpi3lbl">Staf Perempuan</div></div>
-    <div class="kpi" style="--accent:#059669"><div class="num" id="kpi4">–</div><div class="lbl" id="kpi4lbl">Ditempatkan di Rawat Jalan</div></div>
+  <!-- ================= VIEW: SUMBER DATA ================= -->
+  <div class="view" id="viewSource">
+    <div class="info-box">
+      <h3>Tentang Sumber Data</h3>
+      <p>
+        Dashboard ini mengambil data secara langsung dari Google Sheets melalui Apps Script Web App
+        (bukan file statis), jadi setiap kali sheet <code>data</code> diperbarui, dashboard akan
+        menampilkan angka terbaru setelah tombol "Muat Data" ditekan.
+      </p>
+    </div>
+    <div class="connect">
+      <span class="status-dot" id="statusDotFull"></span>
+      <span class="status-text" id="statusTextFull">Belum terhubung</span>
+      <input type="text" id="sheetIdInput" placeholder="Tempel URL Web App Apps Script (…/exec) di sini..." value="https://script.google.com/macros/s/AKfycbyr9QirgNaDgHKDFBtmexVXOgdEiuuU83aPBF4_f2LJ6mkfrziuwwi4CKLGwvW924ZrAg/exec">
+      <button id="connectBtn">Muat Data</button>
+      <div class="hint">
+        Cara pakai: buka Google Sheet → <b>Ekstensi → Apps Script</b> → pasang script backend →
+        <b>Deploy → Web app</b> (Execute as: Me, Access: Anyone) → salin URL yang berakhiran <b>/exec</b> → tempel di kolom atas.
+        Dashboard ini otomatis memanggil parameter <b>?type=sdm</b> pada URL tersebut.
+      </div>
+      <div class="hint" id="debugHint" style="display:none;"></div>
+    </div>
   </div>
 
-  <div class="grid">
-    <div class="card c-profesi">
-      <h2><span class="dot" style="background:#34d399"></span>Pegawai per Profesi</h2>
-      <div class="desc">Jumlah staf berdasarkan kategori profesi</div>
-      <div class="chart-box" id="chartProfesi"></div>
+  <!-- ================= VIEW: DASHBOARD ================= -->
+  <div class="view active" id="viewDashboard">
+    <div class="kpi-row">
+      <div class="kpi" style="--accent:#34d399"><div class="num" id="kpi1">–</div><div class="lbl" id="kpi1lbl">Tenaga Teknis Kefarmasian (TTK)</div></div>
+      <div class="kpi" style="--accent:#84cc16"><div class="num" id="kpi2">–</div><div class="lbl" id="kpi2lbl">Apoteker</div></div>
+      <div class="kpi" style="--accent:#6ee7b7"><div class="num" id="kpi3">–</div><div class="lbl" id="kpi3lbl">Staf Perempuan</div></div>
+      <div class="kpi" style="--accent:#059669"><div class="num" id="kpi4">–</div><div class="lbl" id="kpi4lbl">Ditempatkan di Rawat Jalan</div></div>
     </div>
 
-    <div class="card c-lokasi">
-      <h2><span class="dot" style="background:#10b981"></span>Pegawai per Lokasi Penempatan</h2>
+    <div class="grid">
+      <div class="card c-profesi">
+        <h2><span class="dot" style="background:#34d399"></span>Pegawai per Profesi</h2>
+        <div class="desc">Jumlah staf berdasarkan kategori profesi</div>
+        <div class="chart-box" id="chartProfesi"></div>
+      </div>
+
+      <div class="card c-lokasi">
+        <h2><span class="dot" style="background:#10b981"></span>Pegawai per Lokasi Penempatan</h2>
       <div class="desc">Distribusi staf di setiap unit instalasi farmasi</div>
       <div class="chart-box" id="chartLokasi"></div>
     </div>
@@ -193,10 +249,23 @@
       <div class="chart-box" id="chartUmur"></div>
     </div>
 
+    <div class="card c-masakerja">
+      <h2><span class="dot" style="background:#34d399"></span>Masa Kerja</h2>
+      <div class="desc">Lama bekerja pegawai, dikelompokkan per rentang tahun</div>
+      <div class="chart-box" id="chartMasaKerja"></div>
+    </div>
+
+    <div class="card c-masasip">
+      <h2><span class="dot" style="background:#f2a154"></span>Masa Berlaku SIP</h2>
+      <div class="desc">Sisa masa berlaku izin praktik (SIP), untuk memantau yang perlu diperpanjang</div>
+      <div class="chart-box" id="chartMasaSip"></div>
+    </div>
+
     <div class="card c-jabatan">
       <h2><span class="dot" style="background:#34d399"></span>Pegawai per Jabatan</h2>
       <div class="desc">Rincian jumlah staf pada tiap jabatan</div>
       <div class="chart-box" id="chartJabatan"></div>
+    </div>
     </div>
   </div>
 
@@ -205,6 +274,15 @@
 
 <script>
 try {
+
+function switchTab(name){
+  const isDash = name === 'dashboard';
+  document.getElementById('viewDashboard').classList.toggle('active', isDash);
+  document.getElementById('viewSource').classList.toggle('active', !isDash);
+  document.getElementById('tabBtnDashboard').classList.toggle('active', isDash);
+  document.getElementById('tabBtnSource').classList.toggle('active', !isDash);
+}
+window.switchTab = switchTab;
 
 const GREENS = ['#34d399','#10b981','#059669','#0a7a5c','#0d5c47','#6ee7b7'];
 
@@ -307,6 +385,8 @@ const FALLBACK = {
   pendidikan: {'D3 FARMASI':47,'S1 APOTEKER':20,'SMA':12,'S1 FARMASI':4,'SMK FARMASI':1,'SMP':1,'S2 APOTEKER':1},
   jabatan: {'Staff Rawat Inap':16,'Staff IGD & Ibs':12,'Staff Rawat jalan':9,'Apt.Farklin':7,'Staff Gudang':6,'Staff Onko':3,'Apt.Rawat Jalan':2,'Koor.Rawat inap':2,'Staff Admin':2,'Apt.Onkologi':1,'Koor.Admin':1,'Ka.Instalasi':1,'Koor.IGD & IBS':1,'Apt.Rawat inap':1},
   umur: {'20-29':35,'30-39':37,'40-49':6,'50-59':6},
+  masaKerja: {'< 1 Tahun':6,'1-3 Tahun':22,'3-5 Tahun':28,'5-10 Tahun':21,'> 10 Tahun':9},
+  masaSip: {'Sudah Habis':3,'≤ 6 Bulan':7,'6-12 Bulan':11,'1-3 Tahun':34,'> 3 Tahun':31},
   total: 86
 };
 
@@ -348,9 +428,46 @@ function render(agg){
   document.getElementById('chartUmur').innerHTML =
     verticalBarChart(umurOrder, umurOrder.map(k=>agg.umur[k]), '#059669');
 
+  document.getElementById('chartMasaKerja').innerHTML =
+    verticalBarChart(MASA_KERJA_ORDER, MASA_KERJA_ORDER.map(k=>agg.masaKerja[k]||0), GREENS);
+
+  const sipColors = ['#e76f6f','#f2a154','#eab308','#34d399','#059669'];
+  document.getElementById('chartMasaSip').innerHTML =
+    verticalBarChart(MASA_SIP_ORDER, MASA_SIP_ORDER.map(k=>agg.masaSip[k]||0), sipColors);
+
   const jabRanked = sortDesc(agg.jabatan);
   document.getElementById('chartJabatan').innerHTML =
     horizontalBarChart(jabRanked.map(d=>d[0]), jabRanked.map(d=>d[1]), GREENS);
+}
+
+const MASA_KERJA_ORDER = ['< 1 Tahun','1-3 Tahun','3-5 Tahun','5-10 Tahun','> 10 Tahun'];
+const MASA_SIP_ORDER = ['Sudah Habis','≤ 6 Bulan','6-12 Bulan','1-3 Tahun','> 3 Tahun'];
+
+function parseTahunBulanToMonths(str){
+  if(!str) return null;
+  const s = String(str).trim();
+  if(!s || s.toUpperCase().indexOf('NUM') >= 0 || s.toUpperCase().indexOf('REF') >= 0) return null;
+  const m = s.match(/(-?\d+)\s*Tahun\s*(-?\d+)?\s*Bulan?/i);
+  if(!m) return null;
+  const tahun = parseInt(m[1], 10) || 0;
+  const bulan = m[2] !== undefined ? (parseInt(m[2], 10) || 0) : 0;
+  return tahun * 12 + bulan;
+}
+
+function bucketMasaKerja(months){
+  if(months < 12) return '< 1 Tahun';
+  if(months < 36) return '1-3 Tahun';
+  if(months < 60) return '3-5 Tahun';
+  if(months < 120) return '5-10 Tahun';
+  return '> 10 Tahun';
+}
+
+function bucketMasaSip(months){
+  if(months <= 0) return 'Sudah Habis';
+  if(months <= 6) return '≤ 6 Bulan';
+  if(months <= 12) return '6-12 Bulan';
+  if(months <= 36) return '1-3 Tahun';
+  return '> 3 Tahun';
 }
 
 // ---------- Data aggregation ----------
@@ -358,9 +475,14 @@ function aggregateRows(rows){
   const headers = rows[0].map(h=>h.trim().toUpperCase());
   const idx = name => headers.indexOf(name);
   const iProfesi = idx('PROFESI'), iLokasi = idx('LOKASI STAFF'), iGender = idx('JENIS KELAMIN'),
-        iPendidikan = idx('KUALIFIKASI PENDIDIKAN'), iJabatan = idx('JABATAN'), iUmur = idx('UMUR'), iNo = idx('NO');
+        iPendidikan = idx('KUALIFIKASI PENDIDIKAN'), iJabatan = idx('JABATAN'), iUmur = idx('UMUR'), iNo = idx('NO'),
+        iMasaKerja = idx('MASA KERJA'), iMasaSip = idx('MASA BERLAKU SIP');
 
-  const agg = { profesi:{}, lokasi:{}, gender:{}, pendidikan:{}, jabatan:{}, umur:{}, total:0 };
+  const agg = {
+    profesi:{}, lokasi:{}, gender:{}, pendidikan:{}, jabatan:{}, umur:{}, total:0,
+    masaKerja: Object.fromEntries(MASA_KERJA_ORDER.map(k=>[k,0])),
+    masaSip: Object.fromEntries(MASA_SIP_ORDER.map(k=>[k,0]))
+  };
   for(let r=1;r<rows.length;r++){
     const row = rows[r];
     if(!row || row.every(c=>c==='' || c===undefined)) continue;
@@ -374,6 +496,15 @@ function aggregateRows(rows){
     bump(agg.jabatan, row[iJabatan]);
     const u = parseFloat(row[iUmur]);
     if(!isNaN(u)){ const b = Math.floor(u/10)*10; const key = `${b}-${b+9}`; agg.umur[key] = (agg.umur[key]||0)+1; }
+
+    if(iMasaKerja >= 0){
+      const mk = parseTahunBulanToMonths(row[iMasaKerja]);
+      if(mk !== null) agg.masaKerja[bucketMasaKerja(mk)]++;
+    }
+    if(iMasaSip >= 0){
+      const ms = parseTahunBulanToMonths(row[iMasaSip]);
+      if(ms !== null) agg.masaSip[bucketMasaSip(ms)]++;
+    }
   }
   return agg;
 }
@@ -396,9 +527,11 @@ function hideDebug(){
   document.getElementById('debugHint').style.display = 'none';
 }
 function setStatus(state, text){
-  const dot = document.getElementById('statusDot');
-  dot.className = 'status-dot' + (state ? ' ' + state : '');
+  const cls = 'status-dot' + (state ? ' ' + state : '');
+  document.getElementById('statusDot').className = cls;
+  document.getElementById('statusDotFull').className = cls;
   document.getElementById('statusText').textContent = text;
+  document.getElementById('statusTextFull').textContent = text;
 }
 
 async function loadFromSheet(){
@@ -445,7 +578,9 @@ loadFromSheet();
 } catch (fatalErr) {
   console.error('Dashboard init failed:', fatalErr);
   document.getElementById('statusDot').className = 'status-dot err';
+  document.getElementById('statusDotFull').className = 'status-dot err';
   document.getElementById('statusText').textContent = 'Terjadi error saat memuat dashboard';
+  document.getElementById('statusTextFull').textContent = 'Terjadi error saat memuat dashboard';
   document.getElementById('debugHint').style.display = 'block';
   document.getElementById('debugHint').innerHTML = 'Detail teknis: ' + fatalErr.message + '. Buka Console browser (F12) untuk info lengkap.';
 }
