@@ -503,7 +503,7 @@ function aggregateRows(rows){
     }
     if(iMasaSip >= 0){
       const ms = parseTahunBulanToMonths(row[iMasaSip]);
-      if(ms !== null) agg.masaSip[bucketMasaSip(ms)]++;
+      if(ms !== null && ms !== 0) agg.masaSip[bucketMasaSip(ms)]++;
     }
   }
   return agg;
